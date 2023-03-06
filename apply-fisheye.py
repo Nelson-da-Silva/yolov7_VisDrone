@@ -109,6 +109,26 @@ def apply_annotations(input_image, annotation_file):
         input_image = cv2.rectangle(input_image, top_left, bottom_right, (0,0,255), 1)
     return input_image
 
+def apply_labels(input_image, label_file):
+    label_data = open(label_file)
+    h, w, _ = input_image.shape
+    for line in label_data: # Iterate through each line of the annotation file
+        inst_class, x_centre, y_centre, bbox_w, bbox_h = map(float, line.split(" "))
+        # Box coordinates must be in normalised xywh format (from 0 to 1)
+        x_centre = x_centre * w
+        bbox_w = int(bbox_w * w)
+        y_centre = y_centre * h
+        bbox_h = int(bbox_h * h)
+
+        bbox_l = int(x_centre - bbox_w/2)
+        bbox_t = int(y_centre - bbox_h/2)
+
+        top_left = (bbox_l, bbox_t)
+        bottom_right = (bbox_l+bbox_w, bbox_t+bbox_h)
+        # Plot a thin red boundary box based on the given coordinates
+        input_image = cv2.rectangle(input_image, top_left, bottom_right, (0,0,255), 1)
+    return input_image
+
 # Function to apply the same mathematics as the distortion equation to the
 #   boundary box corner coordinates and write it to a separate file
 def distort_annotations(annotation_file, f, u_x, u_y, crop=False, top_border=0, left_border=0):
@@ -142,6 +162,54 @@ def distort_annotations(annotation_file, f, u_x, u_y, crop=False, top_border=0, 
     # Return the filepath that the annotations have been written to
     return result_file.name
 
+def distort_labels(label_file, f, u_x, u_y, crop=False, top_border=0, left_border=0):
+    # Create a new file, return an error if it already exists
+    original_file = open(label_file)
+    parent_dir = label_file.parents[1]
+    # print(str(label_file.parent).split("\\")[1])
+    result_file = open(str(parent_dir) + "/fisheye/" + args.focal_length + "/labels/" + label_file.stem+".txt", "w")
+
+    u_x_crop = u_x
+    u_y_crop = u_y
+
+    if crop:
+        u_x_crop = u_x - left_border
+        u_y_crop = u_y - top_border
+
+    for line in original_file:
+        inst_class, x_centre, y_centre, bbox_w, bbox_h = map(float, line.split(" "))
+        x_centre = x_centre * u_x*2
+        bbox_w = int(bbox_w * u_x*2)
+        y_centre = y_centre * u_y*2
+        bbox_h = int(bbox_h * u_y*2)
+
+        bbox_l = int(x_centre - bbox_w/2)
+        bbox_t = int(y_centre - bbox_h/2)
+
+        dist_tl = distort_coordinates(bbox_l, bbox_t, u_x, u_y, f)
+        dist_bl = distort_coordinates(bbox_l, bbox_t+bbox_h, u_x, u_y, f)
+        dist_br = distort_coordinates(bbox_l+bbox_w, bbox_t+bbox_h, u_x, u_y, f)
+        dist_tr = distort_coordinates(bbox_l+bbox_w, bbox_t, u_x, u_y, f)
+
+        # Calculate new metrics from the corner distorted corner coordinates
+        bbox_l = min(dist_tl[0], dist_bl[0]) # Left-most x coordinate
+        bbox_t = min(dist_tl[1], dist_tr[1]) # Top-most y coordinate
+        bbox_w = max(dist_br[0], dist_tr[0]) - bbox_l
+        bbox_h = max(dist_br[1], dist_bl[1]) - bbox_t
+
+        if crop: # Determine 
+            bbox_l -= left_border
+            bbox_t -= top_border
+
+        # Convert back to format for label file
+        x_centre = (bbox_l + bbox_w/2)/(u_x_crop*2)
+        y_centre = (bbox_t + bbox_h/2)/(u_y_crop*2)
+
+        ret_items = [inst_class, x_centre, y_centre, bbox_w/(u_x_crop*2), bbox_h/(u_y_crop*2)]
+
+        result_file.write(" ".join([str(n) for n in ret_items])+"\n")
+    # Return the filepath that the annotations have been written to
+    return result_file.name
 
 def distort_coordinates(x, y, u_x, u_y, f):
     norm_y = y-u_y
@@ -219,14 +287,18 @@ def main():
         #   in the subset of that dataset
         input_images_dir = Path(args.input_dir+"/images/")
         input_annotations_dir = Path(args.input_dir+"/annotations/")
+        input_labels_dir = Path(args.input_dir+"/labels/")
 
         result_images_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/images/")
         result_annotations_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/annotations/")
+        result_labels_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/labels/")
         result_images_dir.mkdir(parents=True, exist_ok=True)
         result_annotations_dir.mkdir(parents=True, exist_ok=True)
+        result_labels_dir.mkdir(parents=True, exist_ok=True)
 
         input_images = sorted(input_images_dir.glob('*.jpg'))
         input_annotations = sorted(input_annotations_dir.glob('*.txt'))
+        input_labels = sorted(input_labels_dir.glob('*.txt'))
 
         for i,v in enumerate(input_images):
             # print(dir_input.stem +  i.stem + "_test.jpg")
@@ -264,14 +336,17 @@ def main():
             # Distort the associated annotations and return a filepath for where it was saved
             dist_ann_file = distort_annotations(input_annotations[i], int(args.focal_length), u_x, u_y, 
                                                 crop=True, top_border=top_border, left_border=left_border)
+            dist_label_file = distort_labels(input_labels[i], int(args.focal_length), u_x, u_y, 
+                                                crop=True, top_border=top_border, left_border=left_border)
             # Couldn't have the save file be in a separate line/function because I'd
             #   prefer to open a file and continually append to it rather than store a 
             #   whole chunk at once
 
             # Apply the annotations to the distorted image
             # distorted_bb = apply_annotations(cropped_result_img, dist_ann_file)
+            # distorted_bb = apply_labels(cropped_result_img, dist_label_file)
             # cv2.imshow("Distorted image with boundary boxes", distorted_bb)
-            cv2.waitKey()
+            # cv2.waitKey()
     else: # No input image or path added, default to standard code
         print("No input image or directory given")
 
