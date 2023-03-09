@@ -13,9 +13,13 @@
 # test: VisDrone/VisDrone2019-DET-test-dev/fisheye/150/images  # test images (optional)  1610 images
 
 # Pointing to my personal google drive images
-train: /content/drive/MyDrive/Imperial/FYP/fishdrone/train/150/images
-val: /content/drive/MyDrive/Imperial/FYP/fishdrone/val/150/images
-test: /content/drive/MyDrive/Imperial/FYP/fishdrone/test/150/images
+# train: /content/drive/MyDrive/Imperial/FYP/fishdrone/train/150/images
+# val: /content/drive/MyDrive/Imperial/FYP/fishdrone/val/150/images
+# test: /content/drive/MyDrive/Imperial/FYP/fishdrone/test/150/images
+
+train: FishDrone/train-150/
+val: FishDrone/val-150/
+test: FishDrone/test-150/
 
 nc: 10
 
