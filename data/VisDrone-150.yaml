@@ -8,9 +8,14 @@
 
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-train: VisDrone/VisDrone2019-DET-train/fisheye/150/images  # train images (relative to 'path')  6471 images
-val: VisDrone/VisDrone2019-DET-val/fisheye/150/images  # val images (relative to 'path')  548 images
-test: VisDrone/VisDrone2019-DET-test-dev/fisheye/150/images  # test images (optional)  1610 images
+# train: VisDrone/VisDrone2019-DET-train/fisheye/150/images  # train images (relative to 'path')  6471 images
+# val: VisDrone/VisDrone2019-DET-val/fisheye/150/images  # val images (relative to 'path')  548 images
+# test: VisDrone/VisDrone2019-DET-test-dev/fisheye/150/images  # test images (optional)  1610 images
+
+# Pointing to my personal google drive images
+train: /content/drive/MyDrive/Imperial/FYP/fishdrone/train/150/images
+val: /content/drive/MyDrive/Imperial/FYP/fishdrone/val/150/images
+test: /content/drive/MyDrive/Imperial/FYP/fishdrone/test/150/images
 
 nc: 10
 
