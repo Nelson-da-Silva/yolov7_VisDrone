@@ -12,9 +12,13 @@
 # val: VisDrone/VisDrone2019-DET-val/fisheye/300/images  # val images (relative to 'path')  548 images
 # test: VisDrone/VisDrone2019-DET-test-dev/fisheye/300/images  # test images (optional)  1610 images
 
-train: /content/drive/MyDrive/Imperial/FYP/fishdrone/train/300/images
-val: /content/drive/MyDrive/Imperial/FYP/fishdrone/val/300/images
-test: /content/drive/MyDrive/Imperial/FYP/fishdrone/test/300/images
+# train: /content/drive/MyDrive/Imperial/FYP/fishdrone/train/300/images
+# val: /content/drive/MyDrive/Imperial/FYP/fishdrone/val/300/images
+# test: /content/drive/MyDrive/Imperial/FYP/fishdrone/test/300/images
+
+train: FishDrone/train-300/
+val: FishDrone/val-300/
+test: FishDrone/test-300/
 
 nc: 10
 
