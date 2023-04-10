@@ -17,6 +17,7 @@ from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.plots import plot_images, output_to_target, plot_study_txt
 from utils.torch_utils import select_device, time_synchronized, TracedModel
 
+# !python test.py --data debugging.yaml --img 1280  --batch 5 --conf 0.001 --iou 0.65 --device 0 --save-conf --save-txt --save-hybrid --weights runs/train/yolov7_1280/weights/best.pt --name test
 
 def test(data,
          weights=None,
@@ -41,6 +42,12 @@ def test(data,
          trace=False,
          is_coco=False,
          v5_metric=False):
+
+    # Stating that we've entered test.py
+    print("#####################################")
+    print("Entered test.py")
+    print("#####################################")
+
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -102,6 +109,8 @@ def test(data,
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
     for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+        print("- Evaluating batch : ", batch_i)
+        print(" ")
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -123,13 +132,21 @@ def test(data,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            print("Result of NMS/the variable 'out':")
+            print(out)
+            print(" ")
             t1 += time_synchronized() - t
 
-        # Statistics per image
+        # Statistics per image, iterating through each image and their predictions
+        # si - index, pred - list of predictions for that image
+        print("- Statistics per image section")
         for si, pred in enumerate(out):
+            print("pred: ", pred)
             labels = targets[targets[:, 0] == si, 1:]
+            print("Labels : ", labels)
             nl = len(labels)
             tcls = labels[:, 0].tolist() if nl else []  # target class
+            print("Target class: ", tcls)
             path = Path(paths[si])
             seen += 1
 
@@ -142,11 +159,14 @@ def test(data,
             predn = pred.clone()
             scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
 
-            # Append to text file
+            # Saving the label information - includes all predictions after NMS - what is happening to the labels after this then/?
             if save_txt:
                 gn = torch.tensor(shapes[si][0])[[1, 0, 1, 0]]  # normalization gain whwh
+                # Iterating through the list of predictions
                 for *xyxy, conf, cls in predn.tolist():
+                    # Convert bounding box coordinates to xywh format
                     xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                    # Append confidence to the end of the line if save_conf is enabled
                     line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
                     with open(save_dir / 'labels' / (path.stem + '.txt'), 'a') as f:
                         f.write(('%g ' * len(line)).rstrip() % line + '\n')
@@ -175,40 +195,70 @@ def test(data,
                                   'bbox': [round(x, 3) for x in b],
                                   'score': round(p[4], 5)})
 
+            # What is happening here?
+            print(" - Starting the unknown code")
             # Assign all predictions as incorrect
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
-            if nl:
+            print("correct: ", correct)
+            if nl: # if there are labels available, nl = number of labels
                 detected = []  # target indices
-                tcls_tensor = labels[:, 0]
+                # tcls_tensor - formed from the base labels, not predictions
+                tcls_tensor = labels[:, 0] 
+                print("tcls_tensor : ", tcls_tensor)
 
-                # target boxes
-                tbox = xywh2xyxy(labels[:, 1:5])
+                # target boxes - made from the actual labels so it's probably a box we're aiming for
+                tbox = xywh2xyxy(labels[:, 1:5]) # Converting labels to xyxy format
                 scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
 
-                # Per target class
+                # Per target class, iterative through the unique classes in the target class tensor
                 for cls in torch.unique(tcls_tensor):
                     ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # prediction indices
+                    print("ti: ", ti)
                     pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
+                    print("pi: ", pi)
+                    # Are these indices not the other way around? e.g. pi = prediction indices
 
                     # Search for detections
                     if pi.shape[0]:
                         # Prediction to target ious
+                        # Return intersection over union between predictions and target boxes.
+                        #   This function takes in an input array of multiple boxes (from the prediction (N) and target (M) boxes)
+                        #   then returns a matrix giving the NxM matrix where each value is the IoU between the boxes
                         ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
+                        print("ious: ", ious)
+                        print("i: ", i)
 
                         # Append detections
                         detected_set = set()
+                        # .nonzero returns indices of the indexes which have non-zero elements.
+                        # This is iterating through the IoUs indexes which are above 0.5 (iouv[0])
                         for j in (ious > iouv[0]).nonzero(as_tuple=False):
-                            d = ti[i[j]]  # detected target
-                            if d.item() not in detected_set:
+                            # i - indices obtained from box_iou, i[j] MIGHT be getting the indices of what we are looking at
+                            # ti[] then gets the actual bounding box associated with that target (the bounding box label)
+                            print("i[j]: ", i[j])
+                            d = ti[i[j]]  # detected target (FROM THE LABEL SET)
+                            print("d = ti[i[j]]: ", d)
+                            if d.item() not in detected_set: # if this target has already been detected before, ignore
+                                print("New target detected")
                                 detected_set.add(d.item())
                                 detected.append(d)
-                                correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn
+                                # correct - formed here, TODO: Find out what type this is
+                                print("ious[j]: ", ious[j])
+                                print("iouv: ", iouv)
+                                correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn # THE KEY IS HERE, WHAT IS correct
+                                print("correct: ", correct)
                                 if len(detected) == nl:  # all targets already located in image
+                                    print("All targets detected")
                                     break
 
             # Append statistics (correct, conf, pcls, tcls)
+            #   correct - true positives
+            #   conf - confidence
+            #   pcls - predicted class
+            #   tcls - target class
             stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
 
         # Plot images
@@ -219,8 +269,10 @@ def test(data,
             Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
 
     # Compute statistics
+    # stats - has the tp, conf, pred_clas and target_cls metrics that we want to find out how these were obtained
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
+        # stats - tp (True positives), conf, pred_cls (Predicted classes), target_cls (True classes)
         p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, v5_metric=v5_metric, save_dir=save_dir, names=names)
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
@@ -279,6 +331,7 @@ def test(data,
     # Return results
     model.float()  # for training
     if not training:
+        # Just stating that the results were saved there
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         print(f"Results saved to {save_dir}{s}")
     maps = np.zeros(nc) + map
