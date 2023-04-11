@@ -83,7 +83,7 @@ def test(data,
     check_dataset(data)  # check
     nc = 1 if single_cls else int(data['nc'])  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
-    niou = iouv.numel()
+    niou = iouv.numel() # Total number of elements in the tensor (10)
 
     # Logging
     log_imgs = 0
@@ -129,24 +129,35 @@ def test(data,
 
             # Run NMS
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
+            print("targets: ", targets)
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
-            print("Result of NMS/the variable 'out':")
-            print(out)
-            print(" ")
+            # print("Result of NMS/the variable 'out':")
+            # print(out)
+            # print(" ")
             t1 += time_synchronized() - t
 
         # Statistics per image, iterating through each image and their predictions
         # si - index, pred - list of predictions for that image
         print("- Statistics per image section")
         for si, pred in enumerate(out):
-            print("pred: ", pred)
+            # pred format : coords (?), confidence, class
+            # out - result of all images
+            # pred - boxes for just one image
+            #   one row per box, way more boxes than labels
+            #   Mx6
+            # print("pred: ", pred)
+            print("pred shape: ", pred.shape)
             labels = targets[targets[:, 0] == si, 1:]
-            print("Labels : ", labels)
-            nl = len(labels)
+            # labels : class, coords (?)
+            #   one row per label
+            #   Nx5
+            # print("Labels : ", labels)
+            nl = len(labels) # Number of ground truth bounding boxes
             tcls = labels[:, 0].tolist() if nl else []  # target class
-            print("Target class: ", tcls)
+            # List of classes in 'labels' e.g. [0.0 4.0 3.0 3.0 3.0 3.0...]
+            # print("Target class: ", tcls)
             path = Path(paths[si])
             seen += 1
 
@@ -196,14 +207,21 @@ def test(data,
                                   'score': round(p[4], 5)})
 
             # What is happening here?
+            print(" ")
             print(" - Starting the unknown code")
             # Assign all predictions as incorrect
+            print("pred shape: ", pred.shape)
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
-            print("correct: ", correct)
+            print("correct.shape: ", correct.shape)
+            # Output is a tensor with the same shape as pred[0]xniou
+            #   pred[0] = number of bounding boxes drawn by predictions
+            #   niou = 10, number of values between 0.5 and 0.95 in the mAP calculations.
+
             if nl: # if there are labels available, nl = number of labels
                 detected = []  # target indices
                 # tcls_tensor - formed from the base labels, not predictions
-                tcls_tensor = labels[:, 0] 
+                tcls_tensor = labels[:, 0] # Just a tensor of the classes from the label file, same as target classes but as a tensor
+                # tensor([0., 4., 3., 3., 3., 3., 3., 3.])
                 print("tcls_tensor : ", tcls_tensor)
 
                 # target boxes - made from the actual labels so it's probably a box we're aiming for
@@ -213,10 +231,15 @@ def test(data,
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
 
-                # Per target class, iterative through the unique classes in the target class tensor
+                # Iterating through the classes of the target boxes (made unique)
+                # 0, 3, 4
                 for cls in torch.unique(tcls_tensor):
+                    # Getting indices of the target class tensor where the current class we are looking at is in. 
+                    #   (probably so that we know what labels to compare these to)
                     ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # prediction indices
                     print("ti: ", ti)
+                    # Indexes where the class we are looking at atm matches the prediction class; gives
+                    #   the row indexes where the class of the prediction matches that of the target box we are looking at 
                     pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
                     print("pi: ", pi)
                     # Are these indices not the other way around? e.g. pi = prediction indices
@@ -227,28 +250,56 @@ def test(data,
                         # Return intersection over union between predictions and target boxes.
                         #   This function takes in an input array of multiple boxes (from the prediction (N) and target (M) boxes)
                         #   then returns a matrix giving the NxM matrix where each value is the IoU between the boxes
+                        # predn[pi, :4] - extracts just the predicted boxes of the class we are looking at
+                        # tbox[ti] - target boxes for that same class
+                        print("predn shape: ", predn[pi, :4].shape)
+                        print("tbox shape: ", tbox[ti].shape)
+                        print("box iou without max: ", box_iou(predn[pi, :4], tbox[ti]))
+                        print("box iou shape: ", box_iou(predn[pi, :4], tbox[ti]).shape)
+                        # Calculates IoU of the several boxes
+                        # TODO: Understand more of what box_iou is doing and the format of the output
                         ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
-                        print("ious: ", ious)
-                        print("i: ", i)
+                        # https://discuss.pytorch.org/t/what-is-the-meaning-of-max-of-a-variable/14745/2
+                        # tensor.max(1) takes the max over dim 1 and returns two tensors :
+                        #   ious - the maximum value in each row of the input
+                        #   i - the column index in which that maximum was find
+                        print("ious: ", ious) # Max IoUs per row, best bounding box for each target class?
+                        print("ious shape: ", ious.shape)
+                        print("i: ", i) # Which column indexes these correspond to
+                        print("i shape: ", i.shape)
+                        print(" ")
+
+                        # Looks like what happens below this is just calculating class-wide metrics and the logic I need
+                        #   to compare bounding boxes is the stuff above
 
                         # Append detections
                         detected_set = set()
-                        # .nonzero returns indices of the indexes which have non-zero elements.
-                        # This is iterating through the IoUs indexes which are above 0.5 (iouv[0])
+                        # This is iterating through the best IoUs which are above 0.5 (iouv[0]) (so another form of filtering?)
                         for j in (ious > iouv[0]).nonzero(as_tuple=False):
-                            # i - indices obtained from box_iou, i[j] MIGHT be getting the indices of what we are looking at
-                            # ti[] then gets the actual bounding box associated with that target (the bounding box label)
+                            print("Entering for j loop with j = ", j)
+                            # i - indices obtained from box_iou, i[j] is getting the index of the rows where the IoU is above 0.5
+                            #   (assuming that there is guaranteed to only be one row with an IoU above 0.5 - but then why have a for loop?)
+
+                            # ti[] then gets the actual bounding box associated with that target (the bounding box label),
+                            #   recall that ti[] is the list of indexes of the target class list which the current class is
                             print("i[j]: ", i[j])
-                            d = ti[i[j]]  # detected target (FROM THE LABEL SET)
+                            d = ti[i[j]]  # detected target (FROM THE LABEL SET), which index of the target label list we've
+                            #   detected
                             print("d = ti[i[j]]: ", d)
+                            # detected_set is counting which of the ground truth bounding boxes have been detected from
+                            #   those available.
                             if d.item() not in detected_set: # if this target has already been detected before, ignore
-                                print("New target detected")
+                                print("New bouding box label detected")
                                 detected_set.add(d.item())
                                 detected.append(d)
                                 # correct - formed here, TODO: Find out what type this is
-                                print("ious[j]: ", ious[j])
-                                print("iouv: ", iouv)
+                                print("ious[j]: ", ious[j]) # this is the IoU of the box we've selected (that's above 0.5)
+                                print("iouv: ", iouv) # [0.50000, 0.55000, 0.60000, 0.65000, 0.70000, 0.75000, 0.80000, 0.85000, 0.90000, 0.95000]
+                                # pi[j] = index of a prediction bounding box
+                                print("ious[j] > iouv: ", ious[j] > iouv)
                                 correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn # THE KEY IS HERE, WHAT IS correct
+                                # The whole row of this is set to True (10 cols for the 10 vals in iouv)
+                                # Setting that index of the predicted bounding box to True if the value is above a threshold
                                 print("correct: ", correct)
                                 if len(detected) == nl:  # all targets already located in image
                                     print("All targets detected")
