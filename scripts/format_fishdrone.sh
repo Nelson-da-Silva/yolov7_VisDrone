@@ -4,7 +4,7 @@
 #   ./scripts/format_fishdrone.sh
 
 # Run the python script that downloads the Fishdrone dataset
-# python get_fishdrone.py
+python get_fishdrone.py
 
 dir="FishDrone"
 
@@ -13,14 +13,14 @@ dir="FishDrone"
 # mv $dir/train-830-images-2/* $dir/train-830/images/
 
 #   Create a folder containing all images of the varying focal lengths together
-mkdir $dir/all/train/images
-mkdir $dir/all/train/labels
+mkdir -p $dir/all/train/images
+mkdir -p $dir/all/train/labels
 
-mkdir $dir/all/test/images
-mkdir $dir/all/test/labels
+mkdir -p $dir/all/test/images
+mkdir -p $dir/all/test/labels
 
-mkdir $dir/all/val/images
-mkdir $dir/all/val/labels
+mkdir -p $dir/all/val/images
+mkdir -p $dir/all/val/labels
 
 # Rename while copying to the unified directory
 for g in $dir/train-* # Iterate through train folders
