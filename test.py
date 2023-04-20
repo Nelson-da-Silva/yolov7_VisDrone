@@ -234,11 +234,11 @@ def test(data,
                 # Iterating through the classes of the target boxes (made unique)
                 # 0, 3, 4
                 for cls in torch.unique(tcls_tensor):
-                    # Getting indices of the target class tensor where the current class we are looking at is in. 
-                    #   (probably so that we know what labels to compare these to)
+                    # Getting indexes of the target class tensor where the current class we are looking at is in. 
+                    #   (labels of the bounding boxes)
                     ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # prediction indices
                     print("ti: ", ti)
-                    # Indexes where the class we are looking at atm matches the prediction class; gives
+                    # Indexes of pred where the class we are looking at atm matches the prediction class; gives
                     #   the row indexes where the class of the prediction matches that of the target box we are looking at 
                     pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
                     print("pi: ", pi)
@@ -252,17 +252,16 @@ def test(data,
                         #   then returns a matrix giving the NxM matrix where each value is the IoU between the boxes
                         # predn[pi, :4] - extracts just the predicted boxes of the class we are looking at
                         # tbox[ti] - target boxes for that same class
-                        print("predn shape: ", predn[pi, :4].shape)
-                        print("tbox shape: ", tbox[ti].shape)
-                        print("box iou without max: ", box_iou(predn[pi, :4], tbox[ti]))
-                        print("box iou shape: ", box_iou(predn[pi, :4], tbox[ti]).shape)
-                        # Calculates IoU of the several boxes
-                        # TODO: Understand more of what box_iou is doing and the format of the output
+                        print("predn shape: ", predn[pi, :4].shape) # 15 predictions for this class, P
+                        print("tbox shape: ", tbox[ti].shape) # one ground truth label for this class, T
+                        print("box iou without max: ", box_iou(predn[pi, :4], tbox[ti])) # 15x1
+                        print("box iou shape: ", box_iou(predn[pi, :4], tbox[ti]).shape) # 15x1 = PxT
+                        # Calculates the IoU of all boxes with each other which results in a matrix
                         ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
                         # https://discuss.pytorch.org/t/what-is-the-meaning-of-max-of-a-variable/14745/2
                         # tensor.max(1) takes the max over dim 1 and returns two tensors :
-                        #   ious - the maximum value in each row of the input
-                        #   i - the column index in which that maximum was find
+                        #   ious - the maximum value in each row of the input, P (what IoU is highest per prediction)
+                        #   i - the column index in which that maximum was found, P
                         print("ious: ", ious) # Max IoUs per row, best bounding box for each target class?
                         print("ious shape: ", ious.shape)
                         print("i: ", i) # Which column indexes these correspond to
@@ -273,18 +272,17 @@ def test(data,
                         #   to compare bounding boxes is the stuff above
 
                         # Append detections
-                        detected_set = set()
+                        detected_set = set() # Set of label bounding boxes that have been detected
                         # This is iterating through the best IoUs which are above 0.5 (iouv[0]) (so another form of filtering?)
                         for j in (ious > iouv[0]).nonzero(as_tuple=False):
                             print("Entering for j loop with j = ", j)
-                            # i - indices obtained from box_iou, i[j] is getting the index of the rows where the IoU is above 0.5
-                            #   (assuming that there is guaranteed to only be one row with an IoU above 0.5 - but then why have a for loop?)
-
-                            # ti[] then gets the actual bounding box associated with that target (the bounding box label),
-                            #   recall that ti[] is the list of indexes of the target class list which the current class is
+                            # j - index for current IoU we are looking at (from the 8 predictions)
+                            # i - column indexes obtained from box_iou
+                            # i[j] - column index of the current best IoU value we are looking at (from j), 
+                            # ti[] - index of the bounding box associated with that target,
+                            #   recall that ti[] is the list of indexes of the bounding boxes for that class
                             print("i[j]: ", i[j])
-                            d = ti[i[j]]  # detected target (FROM THE LABEL SET), which index of the target label list we've
-                            #   detected
+                            d = ti[i[j]]  # Index of the ground truth bounding box that we've detected - What our prediction is compared to
                             print("d = ti[i[j]]: ", d)
                             # detected_set is counting which of the ground truth bounding boxes have been detected from
                             #   those available.
@@ -296,21 +294,26 @@ def test(data,
                                 print("ious[j]: ", ious[j]) # this is the IoU of the box we've selected (that's above 0.5)
                                 print("iouv: ", iouv) # [0.50000, 0.55000, 0.60000, 0.65000, 0.70000, 0.75000, 0.80000, 0.85000, 0.90000, 0.95000]
                                 # pi[j] = index of a prediction bounding box
-                                print("ious[j] > iouv: ", ious[j] > iouv)
+                                print("ious[j] > iouv: ", ious[j] > iouv) # This checks if that IoU is above all IoU minimums and returns
+                                # an array of True or False per value
                                 correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn # THE KEY IS HERE, WHAT IS correct
                                 # The whole row of this is set to True (10 cols for the 10 vals in iouv)
                                 # Setting that index of the predicted bounding box to True if the value is above a threshold
                                 print("correct: ", correct)
+                                # Correct then comes out showing which predictions are accurate (True along rows) and how accurate
+                                #   (True along columns)
                                 if len(detected) == nl:  # all targets already located in image
                                     print("All targets detected")
                                     break
 
             # Append statistics (correct, conf, pcls, tcls)
-            #   correct - true positives
+            #   correct - true positives - matrix giving the bounding box predictions made and if they were
+            #       correct or not and to what extent
             #   conf - confidence
             #   pcls - predicted class
             #   tcls - target class
             stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
+            # mAP per class is then calculated using this stats vector
 
         # Plot images
         if plots and batch_i < 3:
