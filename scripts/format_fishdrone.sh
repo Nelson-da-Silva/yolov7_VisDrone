@@ -15,12 +15,15 @@ dir="FishDrone"
 #   Create a folder containing all images of the varying focal lengths together
 mkdir -p $dir/all/train/images
 mkdir -p $dir/all/train/labels
+mkdir -p $dir/all/train/annotations
 
 mkdir -p $dir/all/test/images
 mkdir -p $dir/all/test/labels
+mkdir -p $dir/all/test/annotations
 
 mkdir -p $dir/all/val/images
 mkdir -p $dir/all/val/labels
+mkdir -p $dir/all/val/annotations
 
 # Rename while copying to the unified directory
 for g in $dir/train-* # Iterate through train folders
