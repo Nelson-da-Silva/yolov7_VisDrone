@@ -4,23 +4,30 @@
 #   ./scripts/format_fishdrone.sh
 
 # Run the python script that downloads the Fishdrone dataset
-# python get_fishdrone.py
+python get_fishdrone.py
 
 dir="FishDrone"
 
 # Merge the oversized training images together into one folder
-# mv $dir/train-600-images-2/* $dir/train-600/images/
-# mv $dir/train-830-images-2/* $dir/train-830/images/
+mv $dir/train-600-images-2/* $dir/train-600/images/
+mv $dir/train-830-images-2/* $dir/train-830/images/
+
+# Delete the overflow folders so that they don't mess with the upcoming for loops
+rm -r $dir/train-600-images-2
+rm -r $dir/train-830-images-2
 
 #   Create a folder containing all images of the varying focal lengths together
-mkdir $dir/all/train/images
-mkdir $dir/all/train/labels
+mkdir -p $dir/all/train/images
+mkdir -p $dir/all/train/labels
+mkdir -p $dir/all/train/annotations
 
-mkdir $dir/all/test/images
-mkdir $dir/all/test/labels
+mkdir -p $dir/all/test/images
+mkdir -p $dir/all/test/labels
+mkdir -p $dir/all/test/annotations
 
-mkdir $dir/all/val/images
-mkdir $dir/all/val/labels
+mkdir -p $dir/all/val/images
+mkdir -p $dir/all/val/labels
+mkdir -p $dir/all/val/annotations
 
 # Rename while copying to the unified directory
 for g in $dir/train-* # Iterate through train folders
