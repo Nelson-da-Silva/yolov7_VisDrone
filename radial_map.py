@@ -388,6 +388,7 @@ def main():
 
             #    Create tensor for the predictions
             preds_tensor = create_tensor_from_file(input_preds[i]) # = preds
+            predn = preds_tensor.clone()
 
             # Rectangular, discretized filter
             # filtered_labels_indexes = filter_tensor(labels_tensor, n_regions)
@@ -430,7 +431,7 @@ def main():
                     if pi.shape[0]: # If there is a prediction made
                         # print("Prediction available in this region : ", r, " for class ", cls)
                         # Calculate the IoU between every prediction and target box
-                        ious, ind = box_iou(preds_tensor[pi,1:5], labels_tensor[ti,1:]).max(1)
+                        ious, ind = box_iou(predn[pi,1:5], labels_tensor[ti,1:]).max(1)
                         detected_set = set()
 
                         # Iterating through prediction indexes with an IoU above 0.5               
