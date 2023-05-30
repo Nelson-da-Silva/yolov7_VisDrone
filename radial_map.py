@@ -13,7 +13,10 @@ from pathlib import Path
 # Input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--input', '-i')
-parser.add_argument('--input_dir', '-d')
+# parser.add_argument('--input_dir', '-d')
+parser.add_argument('--input_images', '-img')
+parser.add_argument('--input_labels', '-lbl')
+parser.add_argument('--input_preds', '-prd')
 parser.add_argument('--focal_length', '-f')
 args = parser.parse_args()
 
@@ -352,13 +355,17 @@ def circular_filter(input_tensor, img_shape):
     return filtered_indexes
 
 def main():
-    if not args.input_dir:
+    if not args.input_images and not args.input_labels and not args.input_preds:
         print("No input directory provided")
     else:
-        input_images_dir = Path(args.input_dir+"/images/")
-        input_labels_dir = Path(args.input_dir+"/labels/")
-        input_preds_dir = Path(args.input_dir+"/preds/")
+        # input_images_dir = Path(args.input_dir+"/images/")
+        # input_labels_dir = Path(args.input_dir+"/labels/")
+        # input_preds_dir = Path(args.input_dir+"/preds/")
         # input_og_preds_dir = Path(args.input_dir+"/og_preds/")
+
+        input_images_dir = Path(args.input_images)
+        input_labels_dir = Path(args.input_labels)
+        input_preds_dir = Path(args.input_preds)  
 
         input_images = sorted(input_images_dir.glob('*.jpg'))
         input_labels = sorted(input_labels_dir.glob('*.txt'))
