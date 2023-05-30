@@ -93,14 +93,16 @@ def xywh2xyxy(x):
 def create_tensor_from_file(input_file):
     input_data = open(input_file)
     first_line = input_data.readline()
+    n = len(first_line.split(" "))
     if not first_line:
         print("No labels in this image, skip to next image")
         return
     output_tensor = torch.FloatTensor([float(i) for i in first_line.split(" ")])
+    output_tensor = torch.reshape(output_tensor, [1,n])
     for v in input_data:
         output_tensor = torch.vstack((output_tensor, torch.FloatTensor([float(i) for i in v.split(" ")])))
     # Convert dimensions to xyxy format
-    output_tensor[:,1:] = xywh2xyxy(output_tensor[:,1:])
+    output_tensor[:,1:5] = xywh2xyxy(output_tensor[:,1:5])
     return output_tensor
 
 def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, save_dir='.', names=()):
@@ -321,7 +323,7 @@ def plot_boxes_map(input_tensor, n_regions, all_labels, highlight=0):
 #   - img_shape - resolution of the input image we are filtering into regions for
 def circular_filter(input_tensor, img_shape):
     copy_tensor = input_tensor.detach().clone()
-    copy_tensor[:,1:] = xyxy2xywh(copy_tensor[:,1:]) # Convert to XYWH format
+    copy_tensor[:,1:5] = xyxy2xywh(copy_tensor[:,1:5]) # Convert to XYWH format
     filtered_indexes = [[] for _ in range(3)] # Setting up empty lists to store the indexes
     scale = img_shape[1]/img_shape[0] # e.g. 16/9, to multiply the x-axis by
 
@@ -338,19 +340,12 @@ def circular_filter(input_tensor, img_shape):
 
         # Calculate radius of boundary box centre from the point ine middle of the image
         r = math.sqrt(x_centre**2 + y_centre**2)
-        # print("Radius : ", r)
-        if r <= scale*1/6: # Region 1, r = 1/3
-            # print("Region 1")
+        if r <= scale*1/6: # Region 1
             filtered_indexes[0].append(index)
-        elif r > scale*1/6 and r <= scale*0.4: # Region 2, r = 2/3
-            # print("Region 2")
+        elif r > scale*1/6 and r <= scale*0.4: # Region 2
             filtered_indexes[1].append(index)
-        elif r > scale*0.4: # and r <= scale*7/12: # Region 3, r = 1
-            # print("Region 3")
+        elif r > scale*0.4: # Region 3
             filtered_indexes[2].append(index)
-        # elif r > scale*7/12: # Everywhere else
-        #     # print("Region 4")
-        #     filtered_indexes[3].append(index)
 
     return filtered_indexes
 
