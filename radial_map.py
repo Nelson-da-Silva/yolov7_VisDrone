@@ -472,6 +472,8 @@ def main():
                 tcls = labels_tensor[filtered_labels_indexes[r], 0].tolist() if nl else []  # target class
                 detected_count = 0 # Number of labels detected so far
 
+                predn = preds_tensor.clone()
+
                 if len(preds_tensor[filtered_preds_indexes[r]]) == 0: # No predictions
                     # print("No predictions found in this region")
                     if nl:
@@ -486,7 +488,7 @@ def main():
 
                         if pi.shape[0]: # If there is a prediction made
                             # Calculate the IoU between every prediction and target box
-                            ious, ind = box_iou(preds_tensor[pi,1:5], labels_tensor[ti,1:]).max(1)
+                            ious, ind = box_iou(predn[pi,1:5], labels_tensor[ti,1:]).max(1)
                             detected_set = set()
 
                             # Iterating through prediction indexes with an IoU above 0.5               
