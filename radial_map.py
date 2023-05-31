@@ -363,11 +363,12 @@ def main():
         input_preds_dir = Path(args.input_preds)  
 
         input_images = sorted(input_images_dir.glob('*.jpg'))
-        input_labels = sorted(input_labels_dir.glob('*.txt'))
         input_preds = sorted(input_preds_dir.glob('*.txt'))
+        input_labels = sorted(input_labels_dir.glob('*.txt'))
         # input_og_preds = sorted(input_og_preds_dir.glob('*.txt'))
 
         n_regions = 3
+        # Array for all regions
         stats, ap, ap_class = [], [], []
         # Region specific arrays
         stats_array = [[] for _ in range(n_regions)]
@@ -379,6 +380,7 @@ def main():
         seen = 0
         names = [ 'pedestrian', 'people', 'bicycle', 'car', 'van', 'truck', 'tricycle', 'awning-tricycle', 'bus', 'motor' ]
 
+        # Statistics per image
         for i,v in enumerate(input_labels):
             seen += 1
             #   Create tensor for the label file
@@ -424,6 +426,7 @@ def main():
 
             if nl: # if there are labels
                 labels_classes = labels_tensor[:, 0] # = tcls_tensor
+                # Per target class
                 for cls in torch.unique(labels_classes):
                     ti = (cls == labels_classes).nonzero(as_tuple=False).view(-1) # target indices
                     pi = (cls == preds_tensor[:, 0]).nonzero(as_tuple=False).view(-1)  # prediction indices
@@ -451,7 +454,8 @@ def main():
 
             # ----------------- Compute for each region individually (radial calculations) -----------------
             for r in range(n_regions):
-                # print("Region ", r+1)
+                # print(" ")
+                # print("======== Region ", r+1, " ========")
                 # r+1 - represents the region we are looking at
 
                 # Testing - Visualising labels filtered within that region
@@ -468,11 +472,13 @@ def main():
                 # ================================================================
 
                 #   Variables/lists/tensors initialisation
+                # print("Labels tensor : ", labels_tensor)
+                # print("Indexed : ", labels_tensor[filtered_labels_indexes[r]], 0)
                 nl = len(labels_tensor[filtered_labels_indexes[r]]) # Number of labels in the tensor
+                # print("Number of labels : ", nl)
                 tcls = labels_tensor[filtered_labels_indexes[r], 0].tolist() if nl else []  # target class
+                # print("tcls: ", tcls)
                 detected_count = 0 # Number of labels detected so far
-
-                predn = preds_tensor.clone()
 
                 if len(preds_tensor[filtered_preds_indexes[r]]) == 0: # No predictions
                     # print("No predictions found in this region")
@@ -482,13 +488,17 @@ def main():
 
                 if nl: # if there are labels
                     labels_classes = labels_tensor[filtered_labels_indexes[r], 0] # = tcls_tensor
+                    # print("Labels classes : ", labels_classes)
                     for cls in torch.unique(labels_classes):
+                        # print("==== Looking at class : ", cls, " ====")
                         ti = (cls == labels_classes).nonzero(as_tuple=False).view(-1) # target indices
+                        # print("ti: ", ti)
                         pi = (cls == preds_tensor[filtered_preds_indexes[r], 0]).nonzero(as_tuple=False).view(-1)  # prediction indices
+                        # print("pi : ", pi)
 
                         if pi.shape[0]: # If there is a prediction made
                             # Calculate the IoU between every prediction and target box
-                            ious, ind = box_iou(predn[pi,1:5], labels_tensor[ti,1:]).max(1)
+                            ious, ind = box_iou(preds_tensor[filtered_preds_indexes[r]][pi,1:5], labels_tensor[filtered_labels_indexes[r]][ti,1:]).max(1)
                             detected_set = set()
 
                             # Iterating through prediction indexes with an IoU above 0.5               
