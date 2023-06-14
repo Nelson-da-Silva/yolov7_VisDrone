@@ -11,10 +11,12 @@ dir="FishDrone"
 # Merge the oversized training images together into one folder
 mv $dir/train-600-images-2/* $dir/train-600/images/
 mv $dir/train-830-images-2/* $dir/train-830/images/
+mv $dir/train-830-images-3/* $dir/train-830/images/
 
 # Delete the overflow folders so that they don't mess with the upcoming for loops
 rm -r $dir/train-600-images-2
 rm -r $dir/train-830-images-2
+rm -r $dir/train-830-images-3
 
 #   Create a folder containing all images of the varying focal lengths together
 mkdir -p $dir/all/train/images
