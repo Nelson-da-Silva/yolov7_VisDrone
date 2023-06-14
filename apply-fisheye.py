@@ -18,6 +18,57 @@ args = parser.parse_args()
 # python apply-fisheye.py --input_dir=VisDrone/VisDrone2019-DET-test-dev -f=<choose an input focal length>
 #   T
 
+# Adjusting the current fisheye distortion function to 
+def normalised_fisheye_distort(input_image, f, h, w, u_x, u_y):
+    # Create template output image array based on the input image shape
+    result = np.zeros_like(input_image)
+
+    # Might need special conditions for the middle axes
+
+    # Iterate along the top right quadrant only; top right since this 
+    #   avoids having to deal with negative values
+    for y in range(u_y): # Note that we iterate through the raw coordinate values
+        for x in range(u_x,w):
+            # Normalise to be between the ranges 0 to 1 and relative to the centre (0.5)
+            # norm_y = y-u_y
+            # norm_x = x-u_x
+
+            # print("Original coordinate : (", x-u_x, ", ", y-u_y, ")")
+            norm_y = (y-u_y)/(2*u_y)
+            norm_x = (x-u_x)/(2*u_x)
+            # print("Normalised coordinate : (", norm_x, ", ", norm_y, ")")
+
+            # Get gradient of line going through x,y
+            m = norm_y if norm_x==0 else (norm_y)/(norm_x)
+            # print("m: ", m)
+            rc = math.sqrt(pow(norm_x,2) + pow(norm_y,2))
+            # print("rc: ", rc)
+            numerator = pow((f*(math.atan(rc/f))),2)
+            denominator = 1+pow(m,2)
+            x_f = math.sqrt(numerator/denominator)
+            y_f = x_f * m
+
+            # print("Newly calculated coordinate : (", x_f, ", ", y_f, ")")
+
+            # Scale back to original values
+            x_f = x_f * u_x
+            y_f = y_f * u_y
+            # print("Rescaled distorted coordinate : (", x_f, ", ", y_f, ")")
+
+            x_f = int(x_f)
+            y_f = int(y_f)
+
+            # Make use of the maths for all 4 quadrants
+            # print("Final relative coordinate : (", x_f, ", ", y_f, ")")
+            # print("Destination coordinate : (", x_f+u_x, ", ", y_f+u_y, ")")
+            result[y_f+u_y, x_f+u_x] = input_image[y, x] # TR
+            result[y_f+u_y, w-(x_f+u_x+1)] = input_image[y, w-(x+1)] # TL
+            result[h-(y_f+u_y+1), w-(x_f+u_x+1)] = input_image[h-(y+1), w-(x+1)] # BL
+            result[h-(y_f+u_y+1), x_f+u_x] = input_image[h-(y+1), x] # BR
+            # time.sleep(1)
+            # print(" ")
+    return result
+
 # Optimised fisheye distortion function that only makes calculates on one
 #   quadrant of the input coordinates and uses this to map the changes in
 #   the other 3 quadrants
@@ -215,6 +266,9 @@ def distort_coordinates(x, y, u_x, u_y, f):
     norm_y = y-u_y
     norm_x = x-u_x
 
+    # norm_y = y/h - 0.5
+    # norm_x = x/w - 0.5
+
     # Get gradient of line going through x,y
     m = norm_y if norm_x==0 else (norm_y)/(norm_x)
             
@@ -240,6 +294,9 @@ def distort_coordinates(x, y, u_x, u_y, f):
 
     # Return the distorted pair of coordinates
     return int(x_f + u_x), int(y_f + u_y)
+
+# def upscale_image(input_img, target_res):
+#     return cv2.resize(input_img, dsize=(1920, 1080), interpolation=cv2.INTER_CUBIC)
 
 def main():
     if not args.focal_length:
@@ -286,26 +343,54 @@ def main():
         # Expected input directory is the parent directory for the images
         #   in the subset of that dataset
         input_images_dir = Path(args.input_dir+"/images/")
-        input_annotations_dir = Path(args.input_dir+"/annotations/")
+        # input_annotations_dir = Path(args.input_dir+"/annotations/")
         input_labels_dir = Path(args.input_dir+"/labels/")
 
         result_images_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/images/")
-        result_annotations_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/annotations/")
+        # result_annotations_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/annotations/")
         result_labels_dir = Path(args.input_dir+"/fisheye/" + args.focal_length + "/labels/")
         result_images_dir.mkdir(parents=True, exist_ok=True)
-        result_annotations_dir.mkdir(parents=True, exist_ok=True)
+        # result_annotations_dir.mkdir(parents=True, exist_ok=True)
         result_labels_dir.mkdir(parents=True, exist_ok=True)
 
+        # upscaled_dir = Path(args.input_dir+"/upscaled/")
+        # upscaled_results_dir = Path(args.input_dir+"/upscaled/results/" + args.focal_length + "/")
+
+        # upscaled_dir.mkdir(parents=True, exist_ok=True)
+        # upscaled_results_dir.mkdir(parents=True, exist_ok=True)
+
         input_images = sorted(input_images_dir.glob('*.jpg'))
-        input_annotations = sorted(input_annotations_dir.glob('*.txt'))
+        # input_annotations = sorted(input_annotations_dir.glob('*.txt'))
         input_labels = sorted(input_labels_dir.glob('*.txt'))
 
         for i,v in enumerate(input_images):
             # print(dir_input.stem +  i.stem + "_test.jpg")
             input_image = cv2.imread(str(v))
 
-            # Get dimensions
+            # ======= Upscale the image based on the current resolutions =======
             h, w, _ = input_image.shape
+            scale = 3840/w
+            # 1920, 1080
+            # upscaled_image = cv2.resize(input_image, dsize=(1920, 1080), interpolation=cv2.INTER_CUBIC)
+            # upscaled_image = upscaled_image_changed.copy()
+            upscaled_image = cv2.resize(input_image, dsize=(3840, int(h*scale)), interpolation=cv2.INTER_CUBIC) # 3840 x 2160 (19x6)
+            # upscaled_image_changed = upscaled_image.copy()
+
+            # upscaled_image_2 = cv2.resize(input_image, dsize=(1280, 960), interpolation=cv2.INTER_CUBIC)
+            # cv2.imshow("Original image ", input_image)
+            # cv2.imshow("Upscaled image: ", upscaled_image)
+
+            # Image labelling (for display reasons)
+            # labeled_img = apply_labels(upscaled_image_changed, input_labels[i])
+            # cv2.imshow("Upscaled image with boundary boxes", labeled_img)
+
+            # cv2.imwrite(str(upscaled_dir) + "/" + v.stem + "_1920x1080.jpg", upscaled_image)
+            # cv2.imwrite(str(upscaled_dir) + "/" + v.stem + "_3840x2160.jpg", upscaled_image_2)
+            # cv2.imwrite(str(upscaled_dir) + "/" + v.stem + "_1280x960.jpg", upscaled_image_2)
+            # cv2.waitKey()
+
+            # Get dimensions
+            h, w, _ = upscaled_image.shape
             u_x = int(w/2)
             u_y = int(h/2)
             if w/2 % 2 == 0:
@@ -316,35 +401,39 @@ def main():
             # Calculate boundary coordinates of the distorted image by looking 
             #   at the top middle and middle left coordinates; used for cropping the image
             #   and distorting the annotation coordinates.
-            dist_tm = distort_coordinates(u_x, 0, u_x, u_y, int(args.focal_length)) # top_middle = (u_x, 0)
-            dist_ml = distort_coordinates(0, u_y, u_x, u_y, int(args.focal_length)) # middle_left = (0, u_y)
+            _, top_border = distort_coordinates(u_x, 0, u_x, u_y, int(args.focal_length)) # top_middle = (u_x, 0), dist_tm
+            left_border, _ = distort_coordinates(0, u_y, u_x, u_y, int(args.focal_length)) # middle_left = (0, u_y), dist_ml
 
-            top_border = dist_tm[1]
-            left_border = dist_ml[0]
+            # top_border = dist_tm[1]
+            # left_border = dist_ml[0]
 
-            # Apply a fisheye distortion to the input image
-            result_img = optim_fisheye_distort(input_image, int(args.focal_length), h, w, u_x, u_y)
+            # Apply a fisheye distortion to the upscaled image
+            # result_img = optim_fisheye_distort(input_image, int(args.focal_length), h, w, u_x, u_y)
+            result_img = optim_fisheye_distort(upscaled_image, int(args.focal_length), h, w, u_x, u_y)
             # cv2.imshow("Original", result_img)
             # Crop the distorted image
             cropped_result_img = result_img[top_border:(h-top_border), left_border:w-left_border]
-            # Save the 
+            # cv2.imshow("Cropped result image", cropped_result_img)
             cv2.imwrite(str(result_images_dir) + "/" + v.stem + ".jpg", cropped_result_img)
-            # cv2.imshow("Cropped", cropped_result_img)
-            # print(result_img.shape)
-            # print(cropped_result_img.shape)
 
-            # Distort the associated annotations and return a filepath for where it was saved
-            dist_ann_file = distort_annotations(input_annotations[i], int(args.focal_length), u_x, u_y, 
-                                                crop=True, top_border=top_border, left_border=left_border)
+            # upscaled_cropped_image = cv2.resize(cropped_result_img, dsize=(1280,960), interpolation=cv2.INTER_CUBIC)
+            # cv2.imwrite(str(upscaled_results_dir) + "/" + v.stem + "_1280x960_upscaled.jpg", upscaled_cropped_image)
+            # cv2.imshow("Upscaled cropped image", upscaled_cropped_image)
+            # cv2.waitKey()
+
+            # Save the 
+            # cv2.imwrite(str(upscaled_results_dir) + "/" + v.stem + "_1920x1080.jpg", cropped_result_img)
+            # cv2.imwrite(str(upscaled_results_dir) + "/" + v.stem + "_3840x2160.jpg", cropped_result_img)
+            # cv2.imwrite(str(upscaled_results_dir) + "/" + v.stem + "_1280x960.jpg", cropped_result_img)
+            # cv2.imshow("Original image resolution with fisheye", result_img)
+            # cv2.waitKey()
+
+            # Distort the labels and save (within the function)
             dist_label_file = distort_labels(input_labels[i], int(args.focal_length), u_x, u_y, 
                                                 crop=True, top_border=top_border, left_border=left_border)
-            # Couldn't have the save file be in a separate line/function because I'd
-            #   prefer to open a file and continually append to it rather than store a 
-            #   whole chunk at once
 
-            # Apply the annotations to the distorted image
-            # distorted_bb = apply_annotations(cropped_result_img, dist_ann_file)
             # distorted_bb = apply_labels(cropped_result_img, dist_label_file)
+            # cv2.imwrite("test.jpg", distorted_bb)
             # cv2.imshow("Distorted image with boundary boxes", distorted_bb)
             # cv2.waitKey()
     else: # No input image or path added, default to standard code
