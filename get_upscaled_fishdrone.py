@@ -138,7 +138,7 @@ def unzip_file(file, path=None, exclude=('.DS_Store', '__MACOSX')):
                 zipObj.extract(f, path=path)
 
 # Download
-dir = Path("./FishDrone")  # dataset root dir
+dir = Path("./Upscaled-FishDrone")  # dataset root dir
 urls = ['https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-300.zip',
         'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-600.zip',
         'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-830.zip',
