@@ -13,7 +13,6 @@ parser = argparse.ArgumentParser()
 # parser.add_argument('--input_dir', '-d')
 parser.add_argument('--input_images', '-i')
 parser.add_argument('--input_labels', '-l')
-parser.add_argument('--input_og_preds', '-op')
 parser.add_argument('--input_preds', '-p')
 parser.add_argument('--results_dir', '-r')
 
@@ -121,7 +120,7 @@ def create_tensor_from_file(input_file):
     return output_tensor
 
 def main():
-    if args.input_images and args.input_labels and args.input_og_preds and args.input_preds:
+    if args.input_labels and args.input_preds:
         # Expected input directory is the parent directory for the images
         #   in the subset of that dataset
         # input_images_dir = Path(args.input_dir+"/images/")
@@ -129,7 +128,6 @@ def main():
         input_labels_dir = Path(args.input_labels)
         # Expect predictions to include confidence
         input_preds_dir = Path(args.input_preds)
-        input_og_preds_dir = Path(args.input_og_preds)
         if args.results_dir:
             results_dir = Path(args.results_dir)
             results_dir.mkdir(parents=True, exist_ok=True)
@@ -137,19 +135,14 @@ def main():
         # input_images    = sorted(input_images_dir.glob('*.jpg'))
         input_labels    = sorted(input_labels_dir.glob('*.txt'))
         input_preds     = sorted(input_preds_dir.glob('*.txt'))
-        input_og_preds  = sorted(input_og_preds_dir.glob('*.txt'))
 
         #   Global heatmaps across all images
         hm_xlen, hm_ylen = 18,18 # Heatmap dimensions (originally rectangular at 32:18 (16:9))
         # Average IoU per region
         iou_hm = np.zeros((hm_ylen,hm_xlen)) # IoU heatmap (to accumulate IoU across all images)
         iou_hm_sm = np.zeros((hm_ylen,hm_xlen)) # Sum of boxes with an IoU present (to then divide)
-        # Average IoU per region for the original model
-        og_iou_hm = np.zeros((hm_ylen,hm_xlen))
-        og_iou_hm_sm = np.zeros((hm_ylen,hm_xlen))
         # Regional counters for missed labels
         missed_label_hm = np.zeros((hm_ylen, hm_xlen)) # Map giving the sum of missed labels in an image
-        og_missed_label_hm = np.zeros((hm_ylen, hm_xlen))
         label_hm = np.zeros((hm_ylen, hm_xlen)) # Heatmap where labels exist
 
         # Iterate through each image
@@ -173,8 +166,6 @@ def main():
 
             #    Create tensor for the predictions
             preds_tensor = create_tensor_from_file(input_preds[i])
-            #    Create tensor for the predictions for the original model
-            og_preds_tensor = create_tensor_from_file(input_og_preds[i])
 
             #       Variables/lists/tensors initialisation
             nl = len(labels_tensor) # Number of labels in the tensor
@@ -190,8 +181,6 @@ def main():
                 # Indexes of the predictions which belong to this class
                 pi = (cls == preds_tensor[:, 0]).nonzero(as_tuple=False).view(-1) # prediction indices
                 # print("pi: ", pi)
-                # Indexes of the original predictions
-                og_pi = (cls == og_preds_tensor[:, 0].nonzero(as_tuple=False).view(-1))
 
                 if pi.shape[0]: # If there is at least one prediction made
                     # Calculate the IoU between every prediction and target box
@@ -259,150 +248,31 @@ def main():
                         for l in range(x_left,x_right+1):
                             for k in range (y_left, y_right+1):
                                 missed_label_hm[k,l] += 1
-                    
-                # ============ Repeat prediction analysis but for the predictions from the original model ============
-                if og_pi.shape[0]: # If there is at least one prediction made
-                    detected_count = 0
-                    # Calculate the IoU between every prediction and target box
-                    ious, i = box_iou(og_preds_tensor[pi,1:], labels_tensor[ti,1:]).max(1)
-                    # ious - maximum along each row (get the best IoU pair per prediction)
-                    # i - column index per maximum
-                    # print("ious: ", ious)
-                    # print("i: ", i)
-                    detected_set = set()
-                    predicted_set = set()
-
-                    # Iterating through prediction indexes with an IoU above 0.5               
-                    for j in (ious > 0.5).nonzero(as_tuple=False):
-                        # pi[j] returns the prediction bb index from the original preds_tensor
-                        # preds_tensor[pi[j]] - associated dimensions info to the prediction bb
-                        # ti[i[j]] returns the label bb index from the original labels_classes
-                        # labels_tensor[ti[i[j]]] - associated dimension info to the label bb
-                        # ious[j] - returns the IoU of the associated box pairing
-
-                        # print("Prediction : ", pi[j])
-                        # print(preds_tensor[pi[j]])
-                        # print(i[j])
-                        d = ti[i[j]]
-                        # print("Associated label : ", d)
-                        # print(labels_tensor[d])
-                        # print("------------")
-
-                        if d.item() not in detected_set:
-                            predicted_set.add(pi[j].item()) # Add prediction to the predicted set
-                            detected_set.add(d.item()) # Add label to the detected set
-                            detected_count += 1 # Increment detected label count
-
-                            # Convert coordinates to heatmap dimensions
-                            x_left, x_right, y_left, y_right = discretize_dimensions(labels_tensor[d][0], hm_xlen, hm_ylen)
-                            # print("Plotting from TL : (",x_left,", ",y_left,") and BR : (",x_right,", ",y_right,")")
-
-                            # Fill the associated heatmaps in with the necessary information
-                            for l in range(x_left,x_right+1):
-                                for k in range (y_left, y_right+1):
-                                    og_iou_hm[k,l] += ious[j]
-                                    og_iou_hm_sm[k,l] += 1
-
-                            if detected_count == nl:
-                                # print("All labels detected")
-                                break
-                    
-                    # ====== Identifying missed targets ======
-                    # After looking at the predictions for the class we are currently looking at
-                    # print("---")
-                    # print("predicted set : ", predicted_set)
-                    # print("detected_set : ", list(detected_set))
-                    target_list = [int(x) for x in ti]
-                    # print("list of target labels: ", target_list)
-                    # print("---")
-
-                    missed_targets = list(set(target_list) - detected_set)
-                    # print("missed target labels : ", missed_targets)
-
-                    # Identifying missed labels and summing in the heatmap
-                    for label in missed_targets:
-                        # print(labels_tensor[label])
-                        x_left, x_right, y_left, y_right = discretize_dimensions(labels_tensor[label], hm_xlen, hm_ylen)
-                        # print(y_left)
-                        # print(y_right)
-                        for l in range(x_left,x_right+1):
-                            for k in range (y_left, y_right+1):
-                                og_missed_label_hm[k,l] += 1
-
+ 
         # ============ Heatmap processing ============
         # Heatmap normalisation and plotting
         for i in range(hm_ylen):
             for j in range(hm_xlen):
                 if iou_hm_sm[i,j] != 0:
                     iou_hm[i,j] = iou_hm[i,j]/iou_hm_sm[i,j]
-                if og_iou_hm_sm[i,j] != 0:
-                    og_iou_hm[i,j] = og_iou_hm[i,j]/og_iou_hm_sm[i,j]
-
-        # Calculate differences in IoU between the model being evaluated and the original model
-        diff_iou_hm = iou_hm - og_iou_hm
-        # Global if statements across the heatmaps to separate increases and decreases
-        inc_hm = np.where(diff_iou_hm >= 0, diff_iou_hm, 0) # Indexes where there was an increase in IoU
-        # inc_hm = diff_iou_hm[diff_iou_hm >= 0].reshape(diff_iou_hm.shape)
-        # print(inc_hm.shape)
-        dec_hm = np.where(diff_iou_hm < 0, -diff_iou_hm, 0) # Indexes where there was a decrease in IoU
-        # dec_hm = diff_iou_hm[diff_iou_hm < 0].reshape(diff_iou_hm.shape)
-
-        # Calculate differences in number of missed labels between the models
-        diff_labels_missed = og_missed_label_hm - missed_label_hm
-        dec_label_hm = np.where(diff_labels_missed >= 0, diff_labels_missed, 0) # Filtering where there was a decrease in missed labels
-        inc_label_hm = np.where(diff_labels_missed < 0, -diff_labels_missed, 0) # Filtering where there was an increase in missed labels
-
-        label_vmax = max(missed_label_hm.max(), og_missed_label_hm.max())
 
         # Plot the heatmaps
-        plt.subplot(2,2,1)
-        plt.title("New model : Average IoU per region") # Constrained to where predictions have been matched
+        plt.figure(figsize=(6,8))
+        plt.subplot(2,1,1)
+        plt.title("Average IoU per region") # Constrained to where predictions have been matched
         ax = sns.heatmap(iou_hm, cmap='crest', vmin=0.5, vmax=1)
         sns.heatmap(iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=iou_hm != 0, cbar=False, ax=ax)
-        plt.subplot(2,2,2)
-        plt.title("New model : Undetected label count per region") # Constrained to where labels exist
-        ax = sns.heatmap(missed_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
+        plt.subplot(2,1,2)
+        plt.title("Undetected label count per region") # Constrained to where labels exist
+        ax = sns.heatmap(missed_label_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=label_hm != 0, cbar=False, ax=ax)
-        plt.subplot(2,2,3)
-        plt.title("Baseline model : Average IoU per region")
-        ax = sns.heatmap(og_iou_hm, cmap='crest', vmin=0.5, vmax=1) # Constrained to where predictions have been matched
-        sns.heatmap(og_iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=og_iou_hm != 0, cbar=False, ax=ax)
-        plt.subplot(2,2,4)
-        plt.title("Baseline model : Undetected label count per region") # Constrained to where labels exist
-        ax = sns.heatmap(og_missed_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
-        sns.heatmap(og_iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=label_hm != 0, cbar=False, ax=ax)
 
         # plt.show()
         if args.results_dir:
-            plt.savefig(args.results_dir+"/separate_graphs.jpg")
-
-        label_vmax = max(dec_label_hm.max(), inc_label_hm.max())
-
-        # Heatmaps that show comparison to the original model
-        plt.subplot(2,2,1)
-        plt.title("Increases in IoU") # Constrained to where there have been increases in IoU
-        ax = sns.heatmap(inc_hm, cmap='crest', vmin=0, vmax=1)
-        sns.heatmap(inc_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=inc_hm != 0, cbar=False, ax=ax)
-        plt.subplot(2,2,2)
-        plt.title("Decreases in number of missed labels") # Constrained to where there has been a decrease in the number of missed labels
-        ax = sns.heatmap(dec_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
-        sns.heatmap(dec_label_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=dec_label_hm != 0, cbar=False, fmt='%d', ax=ax)
-        plt.subplot(2,2,3)
-        plt.title("Decreases in IoU") # Constrained to where there have been decreases in IoU
-        ax = sns.heatmap(dec_hm, cmap='crest', vmin=0, vmax=1)
-        sns.heatmap(dec_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=dec_hm != 0, cbar=False, ax=ax)
-        plt.subplot(2,2,4)
-        plt.title("Increases in number of missed labels") # Constrained to where there has been an increase in the number of missed labels
-        ax = sns.heatmap(inc_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
-        # ax = sns.heatmap(inc_label_hm, cmap='crest_r', vmin=0, cbar_kws=dict(ticks=range(int(inc_label_hm.min()-1), int(inc_label_hm.max()) + 2)))
-        sns.heatmap(inc_label_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=inc_label_hm != 0, cbar=False, ax=ax)
-
-        # plt.show()
-        if args.results_dir:
-            plt.savefig(args.results_dir+"/comparison_graphs.jpg")
+            plt.savefig(args.results_dir+"/separate_graphs_solo.jpg")
 
     else:
-        print("Input directory not provided with the --input_dir flag")
+        print("Input directory not provided with the needed flags")
 
 if __name__ == "__main__":
     main()
