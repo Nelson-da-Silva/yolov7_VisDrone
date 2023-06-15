@@ -139,19 +139,18 @@ def unzip_file(file, path=None, exclude=('.DS_Store', '__MACOSX')):
 
 # Download
 dir = Path("./FishDrone")  # dataset root dir
-urls = ['https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-150.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-300.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-600.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/test-830.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/val-150.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/val-300.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/val-600.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/val-830.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-150.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-300.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-600.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-600-images-2.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-830.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-830-images-2.zip',
-        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Upscaled-Fishdrone/train-830-images-3.zip',]
+urls = ['https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/test-150.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/test-300.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/test-600.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/test-830.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/val-150.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/val-300.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/val-600.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/val-830.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/train-150.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/train-300.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/train-600.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/train-600-images-2.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/train-830.zip',
+        'https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/VisDrone-Fisheye/train-830-images-2.zip',]
 download(urls, dir=dir, curl=True, threads=4)
