@@ -6,7 +6,7 @@
 # Run the python script that downloads the Fishdrone dataset
 python get_upscaled_fishdrone.py
 
-dir="Upscaled-FishDrone"
+dir="UpscaledFishDrone"
 
 # Merge the oversized training images together into one folder
 mv $dir/train-600-images-2/* $dir/train-600/images/
