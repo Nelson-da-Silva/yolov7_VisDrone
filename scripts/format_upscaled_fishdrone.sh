@@ -4,7 +4,7 @@
 #   ./scripts/format_fishdrone.sh
 
 # Run the python script that downloads the Fishdrone dataset
-python get_fishdrone.py
+python get_upscaled_fishdrone.py
 
 dir="FishDrone"
 
