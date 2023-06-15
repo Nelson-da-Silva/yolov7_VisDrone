@@ -184,7 +184,7 @@ def main():
 
                 if pi.shape[0]: # If there is at least one prediction made
                     # Calculate the IoU between every prediction and target box
-                    ious, i = box_iou(preds_tensor[pi,1:], labels_tensor[ti,1:]).max(1)
+                    ious, i = box_iou(preds_tensor[pi,1:5], labels_tensor[ti,1:]).max(1)
                     # ious - maximum along each row (get the best IoU pair per prediction)
                     # i - column index per maximum
                     # print("ious: ", ious)
