@@ -242,7 +242,7 @@ def main():
                         x_left, x_right, y_left, y_right = discretize_dimensions(labels_tensor[label], hm_xlen, hm_ylen)
                         for l in range(x_left,x_right+1):
                             for k in range (y_left, y_right+1):
-                                label_hm[k,l] = 1
+                                label_hm[k,l] += 1
 
                     # print("list of target labels: ", target_list)
                     # print("---")
