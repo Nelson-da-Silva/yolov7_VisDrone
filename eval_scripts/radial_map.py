@@ -349,6 +349,12 @@ def circular_filter(input_tensor, img_shape):
 
     return filtered_indexes
 
+# Take an input set of bounding box dimensions (xyxy) and calculate the diagonal length for it
+#   - input_row : [class, xyxy, ~conf]
+#   0 - conf, 1 - tl_x, 2 - tl_y, 3 - br_x, 4 - br_y, 5 - conf
+def calculate_diagonal(input_row):
+    return math.sqrt((input_row[3]-input_row[1])**2 + (input_row[4]-input_row[2])**2)
+
 def main():
     if not args.input_images and not args.input_labels and not args.input_preds:
         print("No input directory provided")
@@ -370,8 +376,11 @@ def main():
         n_regions = 3
         # Array for all regions
         stats, ap, ap_class = [], [], []
+        label_diag, pred_diag = 0, 0
         # Region specific arrays
         stats_array = [[] for _ in range(n_regions)]
+        label_diag_array = [0] * n_regions
+        pred_diag_array = [0] * n_regions
         # ap_array = [[] for _ in range(n_regions)]
         # ap_class_array = [[] for _ in range(n_regions)]
         
@@ -379,17 +388,28 @@ def main():
         niou = iouv.numel()
         seen = 0
         names = [ 'pedestrian', 'people', 'bicycle', 'car', 'van', 'truck', 'tricycle', 'awning-tricycle', 'bus', 'motor' ]
+        n_class = len(names)
+        # Class specific diagonal size metrics
+        clabel_diag, cpred_diag = [0] * n_class, [0] * n_class
+        clabel_diag_array = [[0] * n_regions for _ in range(n_class)] 
+        cpred_diag_array = [[0] * n_regions for _ in range(n_class)]
+        cpred_array_sum = [[0] * n_regions for _ in range(n_class)]
 
         # Statistics per image
         for i,v in enumerate(input_labels):
             seen += 1
             #   Create tensor for the label file
-            labels_tensor = create_tensor_from_file(v) # = tbox
+            labels_tensor = create_tensor_from_file(v) # = tbox, xyxy format [class, xyxy]
             if labels_tensor is None: # no lines in the input file
                 continue
-
+            # Calculate average diagonal length of the label bounding boxes
+            for row in labels_tensor:
+                diag = calculate_diagonal(row)
+                label_diag += diag
+                clabel_diag[int(row[0])] += diag
+            
             #    Create tensor for the predictions
-            preds_tensor = create_tensor_from_file(input_preds[i]) # = preds
+            preds_tensor = create_tensor_from_file(input_preds[i]) # = preds, xyxy format [class, xyxy, conf]
             predn = preds_tensor.clone()
 
             # Rectangular, discretized filter
@@ -400,6 +420,16 @@ def main():
             input_img = cv2.imread(str(input_images[i]))
             filtered_labels_indexes = circular_filter(labels_tensor, input_img.shape)
             filtered_preds_indexes = circular_filter(preds_tensor, input_img.shape)
+
+            # Average diagonal length per region
+            for i, v in enumerate(filtered_labels_indexes):
+                # print("Region ", i+1)
+                for row in labels_tensor[v]:
+                    # print(row)
+                    diag = calculate_diagonal(row)
+                    # print(diag)
+                    label_diag_array[i] += diag
+                    clabel_diag_array[int(row[0])][i] += diag # row[0] = class of the label, i = region index
 
             # Assign all predictions as incorrect
             # correct = torch.zeros(preds_tensor.shape[0], niou, dtype=torch.bool)
@@ -441,6 +471,11 @@ def main():
                         for j in (ious > iouv[0]).nonzero(as_tuple=False):
                             d = ti[ind[j]]
                             if d.item() not in detected_set: # if this target has already been detected before, ignore
+                                row = preds_tensor[pi[j]][0]
+                                diag = calculate_diagonal(row)
+                                pred_diag += diag
+                                cpred_diag[int(row[0])] += diag
+
                                 detected_set.add(d.item())
                                 detected_count += 1 # Increment detected label count
                                 all_correct_array[pi[j]] = ious[j] > iouv 
@@ -505,6 +540,16 @@ def main():
                             for j in (ious > iouv[0]).nonzero(as_tuple=False):
                                 d = ti[ind[j]]
                                 if d.item() not in detected_set: # if this target has already been detected before, ignore
+                                    # Add diagonal length to the rolling sum here
+                                    # print("Prediction index : ", pi[j])
+                                    # print("Associated prediction : ", preds_tensor[filtered_preds_indexes[r]][pi[j]][0])
+                                    # print("Diag = ", calculate_diagonal(preds_tensor[filtered_preds_indexes[r]][pi[j]][0]))
+                                    row = preds_tensor[filtered_preds_indexes[r]][pi[j]][0]
+                                    diag = calculate_diagonal(row)
+                                    pred_diag_array[r] += diag
+                                    cpred_diag_array[int(row[0])][r] += diag
+                                    cpred_array_sum[int(row[0])][r] += 1
+
                                     detected_set.add(d.item())
                                     detected_count += 1 # Increment detected label count
                                     # pi[j] = index of a prediction bounding box
@@ -538,16 +583,20 @@ def main():
             print("No predictions found")
             nt = torch.zeros(1)
 
+        # Process average diagonal lengths
+        label_diag /= nt.sum()
+        pred_diag /= np.sum(cpred_array_sum)
+
         # Print results
-        s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+        s = ('%20s' + '%12s' * 8) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95', 'Label diag', 'Pred diag')
         print(s)
-        pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
-        print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+        pf = '%20s' + '%12i' * 2 + '%12.3g' * 6  # print format
+        print(pf % ('all', seen, nt.sum(), mp, mr, map50, map, label_diag, pred_diag))
 
         # Print results per class
         if len(stats):
             for i, c in enumerate(ap_class):
-                print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+                print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i], clabel_diag[c]/nt[c], cpred_diag[c]/nt[c]))
             
         # After having iterated through all images, calculate metrics per region.
         # At this point, all image data has been appended to the stats array.
@@ -569,16 +618,27 @@ def main():
                 print("No predictions found")
                 nt = torch.zeros(1)
 
+            pred_diag_array[reg] /= nt.sum()
+            label_diag_array[reg] /= nt.sum()
+
             # Print results
-            s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+            s = ('%20s' + '%12s' * 8) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95', 'Label diag', 'Pred diag')
             print(s)
-            pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
-            print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+            pf = '%20s' + '%12i' * 2 + '%12.3g' * 6  # print format
+            print(pf % ('all', seen, nt.sum(), mp, mr, map50, map, pred_diag_array[reg], label_diag_array[reg]))
 
             # Print results per class
             if len(stats):
                 for i, c in enumerate(ap_class):
-                    print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+                    ldiag, pdiag = 0, 0
+                    if nt[c]:
+                        # print("nt[c] == 0 for c = ", c)
+                        # print("nt[c] : ", nt[c])
+                        # print("Sum for this : ", clabel_diag_array[c][reg])
+                        ldiag = clabel_diag_array[c][reg]/nt[c]
+                    if cpred_array_sum[c][reg]:
+                        pdiag = cpred_diag_array[c][reg]/cpred_array_sum[c][reg]
+                    print(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i], ldiag, pdiag))
 
 
 if __name__ == "__main__":
