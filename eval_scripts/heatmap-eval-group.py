@@ -191,7 +191,7 @@ def main():
                 pi = (cls == preds_tensor[:, 0]).nonzero(as_tuple=False).view(-1) # prediction indices
                 # print("pi: ", pi)
                 # Indexes of the original predictions
-                og_pi = (cls == og_preds_tensor[:, 0].nonzero(as_tuple=False).view(-1))
+                og_pi = (cls == og_preds_tensor[:, 0]).nonzero(as_tuple=False).view(-1)
 
                 if pi.shape[0]: # If there is at least one prediction made
                     # Calculate the IoU between every prediction and target box
@@ -373,9 +373,9 @@ def main():
         ax = sns.heatmap(og_missed_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
         sns.heatmap(og_iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=label_hm != 0, cbar=False, ax=ax)
 
-        plt.show()
-        # if args.results_dir:
-        #     plt.savefig(args.results_dir+"/separate_graphs.jpg")
+        # plt.show()
+        if args.results_dir:
+            plt.savefig(args.results_dir+"/separate_graphs.jpg")
 
         label_vmax = max(dec_label_hm.max(), inc_label_hm.max())
 
@@ -399,9 +399,9 @@ def main():
         # ax = sns.heatmap(inc_label_hm, cmap='crest_r', vmin=0, cbar_kws=dict(ticks=range(int(inc_label_hm.min()-1), int(inc_label_hm.max()) + 2)))
         sns.heatmap(inc_label_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=inc_label_hm != 0, cbar=False, ax=ax)
 
-        plt.show()
-        # if args.results_dir:
-        #     plt.savefig(args.results_dir+"/comparison_graphs.jpg")
+        # plt.show()
+        if args.results_dir:
+            plt.savefig(args.results_dir+"/comparison_graphs.jpg")
 
     else:
         print("Input directory not provided with the needed flags")
