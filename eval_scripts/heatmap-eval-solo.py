@@ -231,7 +231,7 @@ def main():
                         x_left, x_right, y_left, y_right = discretize_dimensions(labels_tensor[label], hm_xlen, hm_ylen)
                         for l in range(x_left,x_right+1):
                             for k in range (y_left, y_right+1):
-                                label_hm[k,l] = 1
+                                label_hm[k,l] += 1
 
                     # print("list of target labels: ", target_list)
                     # print("---")
@@ -247,7 +247,7 @@ def main():
                         # print(y_right)
                         for l in range(x_left,x_right+1):
                             for k in range (y_left, y_right+1):
-                                missed_label_hm[k,l] += 1
+                                missed_label_hm[k,l] += 1 # TODO : Normalise in some way : divide by number of images, divide by number of labels available in that region
  
         # ============ Heatmap processing ============
         # Heatmap normalisation and plotting
@@ -255,6 +255,8 @@ def main():
             for j in range(hm_xlen):
                 if iou_hm_sm[i,j] != 0:
                     iou_hm[i,j] = iou_hm[i,j]/iou_hm_sm[i,j]
+                if label_hm[i,j] != 0:
+                    missed_label_hm[i,j] = missed_label_hm[i,j]/label_hm[i,j]
 
         # Plot the heatmaps
         plt.figure(figsize=(6,8))
@@ -263,13 +265,13 @@ def main():
         ax = sns.heatmap(iou_hm, cmap='crest', vmin=0.5, vmax=1)
         sns.heatmap(iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=iou_hm != 0, cbar=False, ax=ax)
         plt.subplot(2,1,2)
-        plt.title("Undetected label count per region") # Constrained to where labels exist
+        plt.title("Proportion of undetected labels per region") # Constrained to where labels exist
         ax = sns.heatmap(missed_label_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=label_hm != 0, cbar=False, ax=ax)
 
-        # plt.show()
-        if args.results_dir:
-            plt.savefig(args.results_dir+"/separate_graphs_solo.jpg")
+        plt.show()
+        # if args.results_dir:
+        #     plt.savefig(args.results_dir+"/separate_graphs_solo.jpg")
 
     else:
         print("Input directory not provided with the needed flags")

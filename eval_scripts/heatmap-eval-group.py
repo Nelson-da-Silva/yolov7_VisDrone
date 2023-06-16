@@ -337,6 +337,9 @@ def main():
                     iou_hm[i,j] = iou_hm[i,j]/iou_hm_sm[i,j]
                 if og_iou_hm_sm[i,j] != 0:
                     og_iou_hm[i,j] = og_iou_hm[i,j]/og_iou_hm_sm[i,j]
+                if label_hm[i,j] != 0:
+                    missed_label_hm[i,j] = missed_label_hm[i,j]/label_hm[i,j]
+                    og_missed_label_hm[i,j] = og_missed_label_hm[i,j]/label_hm[i,j]
 
         # Calculate differences in IoU between the model being evaluated and the original model
         diff_iou_hm = iou_hm - og_iou_hm
@@ -352,8 +355,6 @@ def main():
         dec_label_hm = np.where(diff_labels_missed >= 0, diff_labels_missed, 0) # Filtering where there was a decrease in missed labels
         inc_label_hm = np.where(diff_labels_missed < 0, -diff_labels_missed, 0) # Filtering where there was an increase in missed labels
 
-        label_vmax = max(missed_label_hm.max(), og_missed_label_hm.max())
-
         # Plot the heatmaps
         plt.figure(figsize=(12,8))
         plt.subplot(2,2,1)
@@ -361,23 +362,21 @@ def main():
         ax = sns.heatmap(iou_hm, cmap='crest', vmin=0.5, vmax=1)
         sns.heatmap(iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=iou_hm != 0, cbar=False, ax=ax)
         plt.subplot(2,2,2)
-        plt.title("New model : Undetected label count per region") # Constrained to where labels exist
-        ax = sns.heatmap(missed_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
+        plt.title("New model : Proportion of undetected labels per region") # Constrained to where labels exist
+        ax = sns.heatmap(missed_label_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=label_hm != 0, cbar=False, ax=ax)
         plt.subplot(2,2,3)
         plt.title("Baseline model : Average IoU per region")
         ax = sns.heatmap(og_iou_hm, cmap='crest', vmin=0.5, vmax=1) # Constrained to where predictions have been matched
         sns.heatmap(og_iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=og_iou_hm != 0, cbar=False, ax=ax)
         plt.subplot(2,2,4)
-        plt.title("Baseline model : Undetected label count per region") # Constrained to where labels exist
-        ax = sns.heatmap(og_missed_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
+        plt.title("Baseline model : Proportion of undetected labels per region") # Constrained to where labels exist
+        ax = sns.heatmap(og_missed_label_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(og_iou_hm_sm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=label_hm != 0, cbar=False, ax=ax)
 
-        # plt.show()
-        if args.results_dir:
-            plt.savefig(args.results_dir+"/separate_graphs.jpg")
-
-        label_vmax = max(dec_label_hm.max(), inc_label_hm.max())
+        plt.show()
+        # if args.results_dir:
+        #     plt.savefig(args.results_dir+"/separate_graphs.jpg")
 
         # Heatmaps that show comparison to the original model
         plt.figure(figsize=(12,8))
@@ -386,22 +385,22 @@ def main():
         ax = sns.heatmap(inc_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(inc_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=inc_hm != 0, cbar=False, ax=ax)
         plt.subplot(2,2,2)
-        plt.title("Decreases in number of missed labels") # Constrained to where there has been a decrease in the number of missed labels
-        ax = sns.heatmap(dec_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
+        plt.title("Decreases in proportion of missed labels") # Constrained to where there has been a decrease in the number of missed labels
+        ax = sns.heatmap(dec_label_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(dec_label_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=dec_label_hm != 0, cbar=False, fmt='%d', ax=ax)
         plt.subplot(2,2,3)
         plt.title("Decreases in IoU") # Constrained to where there have been decreases in IoU
         ax = sns.heatmap(dec_hm, cmap='crest', vmin=0, vmax=1)
         sns.heatmap(dec_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=dec_hm != 0, cbar=False, ax=ax)
         plt.subplot(2,2,4)
-        plt.title("Increases in number of missed labels") # Constrained to where there has been an increase in the number of missed labels
-        ax = sns.heatmap(inc_label_hm, cmap='crest', vmin=0, vmax=label_vmax)
+        plt.title("Increases in proportion of missed labels") # Constrained to where there has been an increase in the number of missed labels
+        ax = sns.heatmap(inc_label_hm, cmap='crest', vmin=0, vmax=1)
         # ax = sns.heatmap(inc_label_hm, cmap='crest_r', vmin=0, cbar_kws=dict(ticks=range(int(inc_label_hm.min()-1), int(inc_label_hm.max()) + 2)))
         sns.heatmap(inc_label_hm, cmap=plt.get_cmap('binary'), vmin=0, vmax=0, mask=inc_label_hm != 0, cbar=False, ax=ax)
 
-        # plt.show()
-        if args.results_dir:
-            plt.savefig(args.results_dir+"/comparison_graphs.jpg")
+        plt.show()
+        # if args.results_dir:
+        #     plt.savefig(args.results_dir+"/comparison_graphs.jpg")
 
     else:
         print("Input directory not provided with the needed flags")
