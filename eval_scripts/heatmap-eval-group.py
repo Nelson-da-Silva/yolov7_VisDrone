@@ -195,7 +195,7 @@ def main():
 
                 if pi.shape[0]: # If there is at least one prediction made
                     # Calculate the IoU between every prediction and target box
-                    ious, i = box_iou(preds_tensor[pi,1:5], labels_tensor[ti,1:]).max(1)
+                    ious, i = box_iou(preds_tensor[pi,1:], labels_tensor[ti,1:]).max(1)
                     # ious - maximum along each row (get the best IoU pair per prediction)
                     # i - column index per maximum
                     # print("ious: ", ious)
@@ -264,7 +264,7 @@ def main():
                 if og_pi.shape[0]: # If there is at least one prediction made
                     detected_count = 0
                     # Calculate the IoU between every prediction and target box
-                    ious, i = box_iou(og_preds_tensor[pi,1:5], labels_tensor[ti,1:]).max(1)
+                    ious, i = box_iou(og_preds_tensor[og_pi,1:], labels_tensor[ti,1:]).max(1)
                     # ious - maximum along each row (get the best IoU pair per prediction)
                     # i - column index per maximum
                     # print("ious: ", ious)
@@ -289,7 +289,7 @@ def main():
                         # print("------------")
 
                         if d.item() not in detected_set:
-                            predicted_set.add(pi[j].item()) # Add prediction to the predicted set
+                            predicted_set.add(og_pi[j].item()) # Add prediction to the predicted set
                             detected_set.add(d.item()) # Add label to the detected set
                             detected_count += 1 # Increment detected label count
 
