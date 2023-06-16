@@ -8,9 +8,9 @@
 
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-train: Upscaled-FishDrone/train-600/
-val: Upscaled-FishDrone/val-600/
-test: Upscaled-FishDrone/test-600/
+train: UpscaledFishDrone/train-600/
+val: UpscaledFishDrone/val-600/
+test: UpscaledFishDrone/test-600/
 
 nc: 10
 
