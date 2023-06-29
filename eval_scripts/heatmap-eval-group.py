@@ -15,35 +15,9 @@ parser.add_argument('--input_images', '-i')
 parser.add_argument('--input_labels', '-l')
 parser.add_argument('--input_og_preds', '-op')
 parser.add_argument('--input_preds', '-p')
-parser.add_argument('--results_dir', '-r')
+# parser.add_argument('--results_dir', '-r')
 
 args = parser.parse_args()
-
-def apply_labels(input_image, label_file, colour):
-    label_data = open(label_file)
-    h, w, _ = input_image.shape
-    for i,line in enumerate(label_data): # Iterate through each line of the annotation file
-        # print(line)
-        if i==128:
-            return input_image
-        if len(line.split(" ")) == 6:
-            inst_class, x_centre, y_centre, bbox_w, bbox_h, _ = map(float, line.split(" "))
-        else:
-            inst_class, x_centre, y_centre, bbox_w, bbox_h = map(float, line.split(" "))
-        # Box coordinates must be in normalised xywh format (from 0 to 1)
-        x_centre = x_centre * w
-        bbox_w = int(bbox_w * w)
-        y_centre = y_centre * h
-        bbox_h = int(bbox_h * h)
-
-        bbox_l = int(x_centre - bbox_w/2)
-        bbox_t = int(y_centre - bbox_h/2)
-
-        top_left = (bbox_l, bbox_t)
-        bottom_right = (bbox_l+bbox_w, bbox_t+bbox_h)
-        # Plot a thin red boundary box based on the given coordinates
-        input_image = cv2.rectangle(input_image, top_left, bottom_right, colour, 1)
-    return input_image
 
 # Function taken from test.py
 def box_iou(box1, box2):
@@ -120,6 +94,33 @@ def create_tensor_from_file(input_file):
     output_tensor[:,1:5] = xywh2xyxy(output_tensor[:,1:5])
     return output_tensor
 
+# Helper functions
+def apply_labels(input_image, label_file, colour):
+    label_data = open(label_file)
+    h, w, _ = input_image.shape
+    for i,line in enumerate(label_data): # Iterate through each line of the annotation file
+        # print(line)
+        if i==128:
+            return input_image
+        if len(line.split(" ")) == 6:
+            inst_class, x_centre, y_centre, bbox_w, bbox_h, _ = map(float, line.split(" "))
+        else:
+            inst_class, x_centre, y_centre, bbox_w, bbox_h = map(float, line.split(" "))
+        # Box coordinates must be in normalised xywh format (from 0 to 1)
+        x_centre = x_centre * w
+        bbox_w = int(bbox_w * w)
+        y_centre = y_centre * h
+        bbox_h = int(bbox_h * h)
+
+        bbox_l = int(x_centre - bbox_w/2)
+        bbox_t = int(y_centre - bbox_h/2)
+
+        top_left = (bbox_l, bbox_t)
+        bottom_right = (bbox_l+bbox_w, bbox_t+bbox_h)
+        # Plot a thin red boundary box based on the given coordinates
+        input_image = cv2.rectangle(input_image, top_left, bottom_right, colour, 1)
+    return input_image
+
 def main():
     if args.input_labels and args.input_og_preds and args.input_preds:
         # Expected input directory is the parent directory for the images
@@ -130,9 +131,9 @@ def main():
         # Expect predictions to include confidence
         input_preds_dir = Path(args.input_preds)
         input_og_preds_dir = Path(args.input_og_preds)
-        if args.results_dir:
-            results_dir = Path(args.results_dir)
-            results_dir.mkdir(parents=True, exist_ok=True)
+        # if args.results_dir:
+        #     results_dir = Path(args.results_dir)
+        #     results_dir.mkdir(parents=True, exist_ok=True)
 
         # input_images    = sorted(input_images_dir.glob('*.jpg'))
         input_labels    = sorted(input_labels_dir.glob('*.txt'))
