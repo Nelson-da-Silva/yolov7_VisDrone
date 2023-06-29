@@ -7,6 +7,9 @@ This project augments the existing VisDrone dataset so as to make it look like i
 ## Data Augmentation
 The fisheye projection model chosen for this project can be applied to existing datasets using the scripts found in distortion_scripts/. The function to apply the considered radial distortion model is included in apply-fisheye.py for user interest but is not used.
 
+## Datasets
+To access the datasets used in this project, simply run the scripts found in the get_datasets/ directory.
+
 ## Testing
 
 [`yolov7.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7.pt) [`yolov7x.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7x.pt) [`yolov7-w6.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-w6.pt) [`yolov7-e6.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6.pt) [`yolov7-d6.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-d6.pt) [`yolov7-e6e.pt`](https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6e.pt)
