@@ -31,3 +31,6 @@ Trained on f=150, f=300, f=600 and f=830: [`fishdrone1280_all.pt`](https://githu
 
 ### Upscaled + Small range of distortion levels model
 Trained using the upscaled distortion model at f=300, f=600 and f=830: [`upscaled_fishdrone1280_all.pt`](https://github.com/Nelson-da-Silva/yolov7_VisDrone/releases/download/Models/upscaled_fishdrone1280_all.pt)
+
+## Regional evaluation methods
+The scripts found in eval_scripts/ provide two methods of regional evaluation: heatmaps and radial splitting. More details on these are provided in the report. Note that to use these scripts, the prediction files output from testing must include the confidences associated with each prediction.

@@ -20,33 +20,6 @@ parser.add_argument('--input_preds', '-prd')
 parser.add_argument('--focal_length', '-f')
 args = parser.parse_args()
 
-def apply_tensor_labels(input_image, label_tensor, colour):
-    h, w, _ = input_image.shape
-    label_tensor[:,1:] = xyxy2xywh(label_tensor[:,1:])
-    for i,line in enumerate(label_tensor): # Iterate through each line of the annotation file
-        # print(line)
-        # print(len(line))
-        if len(line) == 6: # conf
-            inst_class, x_centre, y_centre, bbox_w, bbox_h, _ = line
-        else:
-            inst_class, x_centre, y_centre, bbox_w, bbox_h = line
-            # print(x_centre)
-        # Box coordinates must be in normalised xywh format (from 0 to 1)
-        x_centre = x_centre * w
-        bbox_w = int(bbox_w * w)
-        y_centre = y_centre * h
-        bbox_h = int(bbox_h * h)
-
-        bbox_l = int(x_centre - bbox_w/2)
-        bbox_t = int(y_centre - bbox_h/2)
-
-        top_left = (bbox_l, bbox_t)
-        bottom_right = (bbox_l+bbox_w, bbox_t+bbox_h)
-        # Plot a thin red boundary box based on the given coordinates
-        input_image = cv2.circle(input_image, (int(x_centre), int(y_centre)), 0, [0,255,0], 1)
-        input_image = cv2.rectangle(input_image, top_left, bottom_right, colour, 1)
-    return input_image
-
 # Function taken from test.py
 def box_iou(box1, box2):
     # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
@@ -202,121 +175,6 @@ def round_up(x, a):
     # print("x/a ", (x/a))
     return math.ceil(x/a)*a
 
-# Input dimensions are of the heatmap/range we want to discretize between.
-# Returns int values (so range must be larger than 1).
-def discretize_dimensions(input_tensor_line, x_dim, y_dim):
-    # Get dimensions of the label
-    x_left = round(round_up(float(input_tensor_line[1]),1/x_dim)*x_dim) - 1
-    if x_left == -1:
-        x_left = 0
-    # print(labels_tensor[d][0][1], " mapped to ", x_left)
-    x_right = 0
-    if math.floor(float(input_tensor_line[3])) == 1:
-        y_right = y_dim-1
-    else:
-        x_right = round(round_up(float(input_tensor_line[3]),1/x_dim)*x_dim) - 1
-    # print(labels_tensor[d][0][3], " mapped to ", x_right)
-    # Appending to the heatmap should be reversed vertically
-    #   since (0,0) is at the top left
-    y_left = round(round_up(input_tensor_line[2],1/y_dim)*y_dim) - 1
-    if y_left == -1:
-        y_left = 0
-    # print(labels_tensor[d][0][2], " mapped to ", y_left)
-    y_right = 0
-    if math.floor(float(input_tensor_line[4])) == 1:
-        y_right = y_dim-1
-    else:
-        y_right = round(round_up(input_tensor_line[4],1/y_dim)*y_dim) - 1
-    return x_left, x_right, y_left, y_right
-
-# Take in an input tensor of predictions and a range of rectangular regions to cover, output
-#   a filtered version of that tensor to only include the labels in those regions
-def filter_tensor(input_tensor, n_regions):
-    filtered_indexes = [[] for _ in range(n_regions)] # Setting up empty lists to store the indexes
-    #   of the predictions belonging to the n-1th region
-    # iou_hm = np.zeros((n_regions*2-1,n_regions*2-1)) # Test heatmap
-    # print(iou_hm)
-
-    # Iterate through the predictions row by row
-    for i, row in enumerate(input_tensor):
-        # print("Row: ", row)
-        # Calculate discretized dimensions ranges, input dimensions depends on the number of regions we want to evaluate
-        x_left, x_right, y_left, y_right = discretize_dimensions(row, n_regions*2-1, n_regions*2-1)
-        # print("Discretized dimensions: ", discretize_dimensions(row, n_regions*2-1, n_regions*2-1))
-
-        # # Graph plotting for testing
-        # for l in range(x_left,x_right+1):
-        #     for k in range (y_left, y_right+1):
-        #         iou_hm[k,l] += 1
-        # continue
-
-        # Classify what region that should go into by iterating through all boxes from that object
-        #   and seeing what region it belongs to
-        regions = set() # Regions the current prediction is already in
-        for l in range(x_left,x_right+1):
-            for k in range (y_left, y_right+1):
-                # print("Index : (", l, ", ", k, ")")
-                l_corrected = abs(l-(n_regions-1))
-                r = 0
-                if abs(k-(n_regions-1)) <= l_corrected:
-                    r = l_corrected+1
-                else:
-                    r = abs(k-(n_regions-1))+1
-                # print("Placed in region: ", r)
-
-                # Check what regions they coincide with and append their index to that region if so
-                if r not in regions: # Region not yet appended
-                    regions.add(r)
-                    filtered_indexes[r-1].append(i) # Append the current index to the indices of that region
-                else:
-                    continue # skip
-    # sns.heatmap(iou_hm, cmap='crest')
-    # plt.show()
-
-    # Return a list of filtered_tensors of size n_regions, tensor for each region
-    return filtered_indexes
-
-# Helper function to plot the objects in an image in a heatmap style to test filtering
-#   highlight - region we want to highlight in the graph
-def plot_boxes_map(input_tensor, n_regions, all_labels, highlight=0):
-    if highlight != 0: # Highlight a specific region
-        hl_map = np.zeros((n_regions*2-1,n_regions*2-1))
-        for l in range(-(highlight-1), highlight):
-            print(l)
-            hl_map[highlight-1 + (n_regions-1),l+(n_regions-1)] += 1
-            hl_map[-(highlight-1)+ (n_regions-1),l+(n_regions-1)] += 1
-        for k in range(-(highlight-1), highlight):
-            hl_map[k+(n_regions-1), highlight-1 + (n_regions-1)] += 1
-            hl_map[k+(n_regions-1), -(highlight-1) + (n_regions-1)] += 1
-        plt.subplot(2,2,1)
-        plt.title("Region in focus")
-        sns.heatmap(hl_map, cmap='crest')
-        # plt.show()
-
-    labels_map = np.zeros((n_regions*2-1,n_regions*2-1)) # Test heatmap
-    for row in input_tensor:
-        x_left, x_right, y_left, y_right = discretize_dimensions(row, n_regions*2-1, n_regions*2-1)
-        for l in range(x_left,x_right+1):
-            for k in range (y_left, y_right+1):
-                labels_map[k,l] += 1
-
-    all_labels_map = np.zeros((n_regions*2-1,n_regions*2-1)) # Test heatmap
-    for row in all_labels:
-        x_left, x_right, y_left, y_right = discretize_dimensions(row, n_regions*2-1, n_regions*2-1)
-        for l in range(x_left,x_right+1):
-            for k in range (y_left, y_right+1):
-                all_labels_map[k,l] += 1
-
-    plt.subplot(2,2,2)
-    plt.title("Labels within that region")
-    sns.heatmap(labels_map, cmap='crest')
-
-    plt.subplot(2,2,3)
-    plt.title("All labels")
-    sns.heatmap(all_labels_map, cmap='crest')
-
-    plt.show()
-
 # Filter out labels in circular regions of the image
 # Inputs
 #   - input_tensor - tensor of boundary boxes with coordinates to be filtered out
@@ -355,15 +213,38 @@ def circular_filter(input_tensor, img_shape):
 def calculate_diagonal(input_row):
     return math.sqrt((input_row[3]-input_row[1])**2 + (input_row[4]-input_row[2])**2)
 
+# Helper functions
+def apply_tensor_labels(input_image, label_tensor, colour):
+    h, w, _ = input_image.shape
+    label_tensor[:,1:] = xyxy2xywh(label_tensor[:,1:])
+    for i,line in enumerate(label_tensor): # Iterate through each line of the annotation file
+        # print(line)
+        # print(len(line))
+        if len(line) == 6: # conf
+            inst_class, x_centre, y_centre, bbox_w, bbox_h, _ = line
+        else:
+            inst_class, x_centre, y_centre, bbox_w, bbox_h = line
+            # print(x_centre)
+        # Box coordinates must be in normalised xywh format (from 0 to 1)
+        x_centre = x_centre * w
+        bbox_w = int(bbox_w * w)
+        y_centre = y_centre * h
+        bbox_h = int(bbox_h * h)
+
+        bbox_l = int(x_centre - bbox_w/2)
+        bbox_t = int(y_centre - bbox_h/2)
+
+        top_left = (bbox_l, bbox_t)
+        bottom_right = (bbox_l+bbox_w, bbox_t+bbox_h)
+        # Plot a thin red boundary box based on the given coordinates
+        input_image = cv2.circle(input_image, (int(x_centre), int(y_centre)), 0, [0,255,0], 1)
+        input_image = cv2.rectangle(input_image, top_left, bottom_right, colour, 1)
+    return input_image
+
 def main():
     if not args.input_images and not args.input_labels and not args.input_preds:
         print("No input directory provided")
     else:
-        # input_images_dir = Path(args.input_dir+"/images/")
-        # input_labels_dir = Path(args.input_dir+"/labels/")
-        # input_preds_dir = Path(args.input_dir+"/preds/")
-        # input_og_preds_dir = Path(args.input_dir+"/og_preds/")
-
         input_images_dir = Path(args.input_images)
         input_labels_dir = Path(args.input_labels)
         input_preds_dir = Path(args.input_preds)  
@@ -371,7 +252,6 @@ def main():
         input_images = sorted(input_images_dir.glob('*.jpg'))
         input_preds = sorted(input_preds_dir.glob('*.txt'))
         input_labels = sorted(input_labels_dir.glob('*.txt'))
-        # input_og_preds = sorted(input_og_preds_dir.glob('*.txt'))
 
         n_regions = 3
         # Array for all regions
@@ -412,10 +292,6 @@ def main():
             preds_tensor = create_tensor_from_file(input_preds[i]) # = preds, xyxy format [class, xyxy, conf]
             predn = preds_tensor.clone()
 
-            # Rectangular, discretized filter
-            # filtered_labels_indexes = filter_tensor(labels_tensor, n_regions)
-            # filtered_preds_indexes = filter_tensor(preds_tensor, n_regions)
-
             # Circular filter
             input_img = cv2.imread(str(input_images[i]))
             filtered_labels_indexes = circular_filter(labels_tensor, input_img.shape)
@@ -436,12 +312,6 @@ def main():
             # Region specific arrays
             correct_array = [torch.zeros(preds_tensor[filtered_preds_indexes[r]].shape[0], niou, dtype=torch.bool) for r in range(n_regions)]
             all_correct_array = torch.zeros(preds_tensor.shape[0], niou, dtype=torch.bool)
-
-            # # Testing discretized filter index (heatmaps)
-            # highlighted_region = 5
-            # print(labels_tensor[filtered_labels_indexes[highlighted_region-1],:])
-            # plot_boxes_map(labels_tensor[filtered_labels_indexes[highlighted_region-1],:], n_regions, labels_tensor, highlighted_region)
-            # continue
 
             # ----------------- Compute for all regions together (standard computation) -----------------
             #   Variables/lists/tensors initialisation
