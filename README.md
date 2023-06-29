@@ -2,7 +2,7 @@
 
 GitHub repository associated with the dissertation of Nelson da Silva's final year Master's project completed at the Imperial College London for the fulfilment of the requirements for the degree of Electronic and Information Engineering.
 
-This project augments the existing VisDrone dataset so as to make it look like it's been captured through a fisheye lens.
+An associated Google Colab Notebook page which has some examples on how to use the scripts and also shows all of the code used to acquire the results is available here: https://colab.research.google.com/drive/1DAbd8m9Yv9iSG_Uhu1d6sAfCj6Q8aLW1?usp=sharing
 
 ## Data Augmentation
 The fisheye projection model chosen for this project can be applied to existing datasets using the scripts found in distortion_scripts/. The function to apply the considered radial distortion model is included in apply-fisheye.py for user interest but is not used.
